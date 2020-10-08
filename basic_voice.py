@@ -2,7 +2,7 @@ import asyncio
 
 import discord
 import youtube_dl
-
+from urllib.parse import quote
 from discord.ext import commands
 
 import subprocess
@@ -10,7 +10,10 @@ import re
 import random
 
 
-TOKEN = 'NjIzMjM3OTk4NTI3NjQzNzEx.XX_hng.GvnAc1qEKcv0cTHwBjYbJ5XU1fU'
+# read token
+f = open('token','r')
+TOKEN = str(f.readline())
+f.close()
 BOT_PREFIX = "%"
 
 # Suppress noise about console usage from errors
@@ -33,6 +36,73 @@ ytdl_format_options = {
 
 ffmpeg_options = {
     'options': '-vn'
+}
+
+tts_lang = {
+    'afrikaans'     :   'af',
+    'irish'         :   'ga',
+    'albanian'      :   'sq',
+    'italian'       :   'it',
+    'arabic'        :   'ar',
+    'japanese'      :   'ja',
+    'azerbaijani'   :   'az',
+    'kannada'       :   'kn',
+    'basque'        :   'eu',
+    'korean'        :   'ko',
+    'bengali'       :   'bn',
+    'latin'         :   'la',
+    'belarusian'    :   'be',
+    'latvian'       :   'lv',
+    'bulgarian'     :   'bg',
+    'lithuanian'    :   'lt',
+    'catalan'       :   'ca',
+    'macedonian'    :   'mk',
+    'chinese simplified'    :   'zh-CN',
+    'malay'         :   'ms',
+    'chinese traditional'   :   'zh-TW',
+    'maltese'       :   'mt',
+    'croatian'      :   'hr',
+    'norwegian'     :   'no',
+    'czech'         :   'cs',
+    'persian'       :   'fa',
+    'danish'        :   'da',
+    'polish'        :   'pl',
+    'dutch'         :   'nl',
+    'portuguese'    :   'pt',
+    'english'       :   'en',
+    'romanian'      :   'ro',
+    'esperanto'     :   'eo',
+    'russian'       :   'ru',
+    'estonian'      :   'et',
+    'serbian'       :   'sr',
+    'filipino'      :   'tl',
+    'slovak'        :   'sk',
+    'finnish'       :   'fi',
+    'slovenian'     :   'sl',
+    'french'        :   'fr',
+    'spanish'       :   'es',
+    'galician'      :   'gl',
+    'swahili'       :   'sw',
+    'georgian'      :   'ka',
+    'swedish'       :   'sv',
+    'german'        :   'de',
+    'tamil'         :   'ta',
+    'greek'         :   'el',
+    'telugu'        :   'te',
+    'gujarati'      :   'gu',
+    'thai'          :   'th',
+    'haitian creole':   'ht',
+    'turkish'       :   'tr',
+    'hebrew'        :   'iw',
+    'ukrainian'     :   'uk',
+    'hindi'         :   'hi',
+    'urdu'          :   'ur',
+    'hungarian'     :   'hu',
+    'vietnamese'    :   'vi',
+    'icelandic'     :   'is',
+    'welsh'         :   'cy',
+    'indonesian'    :   'id',
+    'yiddish'       :   'yi'
 }
 
 ytdl = youtube_dl.YoutubeDL(ytdl_format_options)
@@ -65,6 +135,7 @@ class YTDLSource(discord.PCMVolumeTransformer):
 class Music(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        self.tts_lang_sel = 'en'
 
     @commands.command()
     async def join(self, ctx, *, channel: discord.VoiceChannel):
@@ -78,8 +149,19 @@ class Music(commands.Cog):
     @commands.command(aliases=['p','pl','pla'])
     async def play(self, ctx, *, query):
         """Plays a file from the local filesystem"""
+        
+        
+        #ffaudio = discord.FFmpegPCMAudio('res/'+query, stderr=subprocess.PIPE)
+        #err = ffaudio.stderr.decode('utf-8')
 
-        source = discord.PCMVolumeTransformer(discord.FFmpegPCMAudio('res/'+query))
+        #if(err != None):
+        #    ctx.send('bro i literarily physically can\'t say ***{}***'.format(query))
+
+
+        ffaudio = discord.FFmpegPCMAudio('res/'+query)
+        source = discord.PCMVolumeTransformer(ffaudio)
+
+
         ctx.voice_client.play(source, after=lambda e: print('Player error: %s' % e) if e else None)
 
         await ctx.send('***{}***'.format(query))
@@ -103,6 +185,37 @@ class Music(commands.Cog):
             ctx.voice_client.play(player, after=lambda e: print('Player error: %s' % e) if e else None)
 
         await ctx.send('***{}***'.format(player.title))
+    
+    @commands.command(aliases=['l'])
+    async def lang(self, ctx, *, lang_key):
+        if lang_key not in tts_lang:
+            await ctx.send(f"i physically can\'t speak {lang_key}")
+        else:
+            self.tts_lang_sel = tts_lang[lang_key]
+            await ctx.send(f"i speak {lang_key} bitchass")
+        pass
+    @commands.command(aliases=['s'])
+    async def speak(self, ctx, *, query):
+        """Use google translate request a wav download to local and playback and delete, the max we can have is 264 after padding"""
+        async with ctx.typing():
+            """Download Audio from google translate"""
+            query_parse = quote(query)
+            if(len(query_parse) > 264):
+                await ctx.send("shit is too long give me tldr")
+            else:
+                res = subprocess.run(["wget","-O","res/tmp","-U","mozilla","https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&q="+query_parse+"&tl="+self.tts_lang_sel], stdout=subprocess.PIPE)
+                msg = res.stdout.decode('utf-8').strip()
+                #while(msg.find("save")==-1):
+                #    pass
+                """Playback the downloaded audio to the voice channel"""
+                ffaudio = discord.FFmpegPCMAudio('res/tmp')
+                source = discord.PCMVolumeTransformer(ffaudio)
+                ctx.voice_client.play(source, after=lambda e:print('Player error: %s' % e) if e else None)
+
+                """Clean up the downloaded audio file"""
+                #res = subprocess.run(["rm","res/tmp"])
+            pass
+        pass
 
     @commands.command()
     async def volume(self, ctx, volume: int):
@@ -123,6 +236,7 @@ class Music(commands.Cog):
     @play.before_invoke
     @yt.before_invoke
     @ytdlp.before_invoke
+    @speak.before_invoke
     async def ensure_voice(self, ctx):
         if ctx.voice_client is None:
             if ctx.author.voice:
@@ -135,6 +249,14 @@ class Music(commands.Cog):
 
 bot = commands.Bot(command_prefix=commands.when_mentioned_or(BOT_PREFIX),
                    description='Relatively simple music bot example')
+
+
+
+
+
+
+
+
 
 @bot.event
 async def on_ready():
@@ -151,6 +273,7 @@ async def on_message(message):
     
     global pause
     global yoshi_unlock
+
 
     if "unkill" in message.content:
         pause = False
@@ -188,7 +311,7 @@ async def on_message(message):
 
                     await message.channel.send(msg)
 
-
+        
         
 
         if "steven" in message.content.lower():
@@ -213,7 +336,7 @@ async def on_message(message):
             await message.channel.send(msg)
 
         if "poop" in message.content.lower():
-            msg = 'pp'.format(message)
+            msg = ':poop:'
             await message.channel.send(msg)
 
         if "arch" in message.content.lower():
@@ -252,7 +375,14 @@ async def on_message(message):
             begin = msg.find("+")
             end = msg.find("F")
             temp_str = msg[begin:end+1]
-            send_msg = "Hi {0.author.mention}, im at {1} rn. Pretty sure im having a minor fever. thanks for asking tho.".format(message, temp_str)
+            temp = float(temp_str[1:-2])
+            send_msg = "Hi {0.author.mention}, im at {1} rn. ".format(message, temp_str)
+
+            if(temp >= 100):
+                send_msg += "Pretty sure im having a minor fever rn :hot_face: thanks for asking tho"
+            elif(temp < 100):
+                send_msg += "Just chillin :cool:"
+            
             await message.channel.send(send_msg)
         
         
@@ -279,6 +409,11 @@ async def list(ctx):
 
 
 
+@bot.command()
+async def test(ctx, input_str):
+    
+    pass
+    
 
 
 
