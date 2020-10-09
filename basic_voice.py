@@ -134,8 +134,9 @@ class YTDLSource(discord.PCMVolumeTransformer):
 
 class Music(commands.Cog):
     def __init__(self, bot):
-        self.bot = bot
         self.tts_lang_sel = 'en'
+        self.is_speaking = False
+        self.bot = bot
 
     @commands.command()
     async def join(self, ctx, *, channel: discord.VoiceChannel):
@@ -185,7 +186,16 @@ class Music(commands.Cog):
             ctx.voice_client.play(player, after=lambda e: print('Player error: %s' % e) if e else None)
 
         await ctx.send('***{}***'.format(player.title))
+   
+
     
+    def speak_after_callback(self, e):
+        if e:
+            print('Player error %s' % e)
+        print("ENTERED CALLLLBACK")
+        self.is_speaking = False
+
+
     @commands.command(aliases=['l'])
     async def lang(self, ctx, *, lang_key):
         if lang_key not in tts_lang:
@@ -197,25 +207,50 @@ class Music(commands.Cog):
     @commands.command(aliases=['s'])
     async def speak(self, ctx, *, query):
         """Use google translate request a wav download to local and playback and delete, the max we can have is 264 after padding"""
+        query_parse = quote(query)
         async with ctx.typing():
             """Download Audio from google translate"""
-            query_parse = quote(query)
             if(len(query_parse) > 264):
-                await ctx.send("shit is too long give me tldr")
+                exceed = len(query_parse) - 264
+                await ctx.send(f"shit is too long give me tldr {exceed} less")
             else:
+                self.is_speaking = True # lock
                 res = subprocess.run(["wget","-O","res/tmp","-U","mozilla","https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&q="+query_parse+"&tl="+self.tts_lang_sel], stdout=subprocess.PIPE)
-                msg = res.stdout.decode('utf-8').strip()
-                #while(msg.find("save")==-1):
-                #    pass
                 """Playback the downloaded audio to the voice channel"""
                 ffaudio = discord.FFmpegPCMAudio('res/tmp')
                 source = discord.PCMVolumeTransformer(ffaudio)
-                ctx.voice_client.play(source, after=lambda e:print('Player error: %s' % e) if e else None)
-
+                ctx.voice_client.play(source, after=self.speak_after_callback)
+                while(self.is_speaking):
+                    pass # we wait until speak_after_callback is called (audio finish playing)
                 """Clean up the downloaded audio file"""
                 #res = subprocess.run(["rm","res/tmp"])
             pass
         pass
+    @commands.command(aliases=['ls'])
+    async def long_speak(self, ctx, *, query):
+        """We are trying to solve the google 264 byte query string length limit by dividing"""
+        req_list = []
+        count = 0
+        sub_str = ""
+
+        for c in query:  # it should work but those damn %20 and unbroken up words lol
+            if(count == 244):
+                req_list.append(sub_str)
+                sub_str = ""
+                count = 0
+            else:
+                sub_str += c
+                if(c == ' ' or c == '\n'):
+                    count += 3
+                else:
+                    count += 1
+        req_list.append(sub_str)
+
+        for req in req_list:
+            await self.speak(ctx, query=req)
+
+
+
 
     @commands.command()
     async def volume(self, ctx, volume: int):
