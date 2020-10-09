@@ -234,18 +234,21 @@ class Music(commands.Cog):
         sub_str = ""
 
         for c in query:  # it should work but those damn %20 and unbroken up words lol
-            if(count == 244):
+            sub_str += c
+            if(c == ' ' or c == '\n'):
+                count += 3
+            else:
+                count += 1
+            
+            if(count >= 200):
                 req_list.append(sub_str)
                 sub_str = ""
                 count = 0
-            else:
-                sub_str += c
-                if(c == ' ' or c == '\n'):
-                    count += 3
-                else:
-                    count += 1
+        
         req_list.append(sub_str)
 
+        for req in req_list:
+            await ctx.send(req)
         for req in req_list:
             await self.speak(ctx, query=req)
 
